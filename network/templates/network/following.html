@@ -1,0 +1,110 @@
+{% extends "network/layout.html" %}
+
+{% block body %}
+
+{% if user.is_authenticated %}
+    <div class="main-content">
+        <h2>Following</h2>
+        {% for post in page_obj %}
+            <div class="post">
+                <!-- Link to the user's profile who made the post -->
+                <h4><a href="{% url 'profile' user_id=post.user.id %}">{{ post.user.username }}</a></h4>
+                <p>{{ post.content }}</p>
+                <small>{{ post.timestamp|date:"M d, Y H:i" }}</small>
+                <p><span style="font-size: 17px; color: red;">❤️</span>: {{ post.post_like.count }}</p>
+                <button id="like-button"  class="like-btn" data-post="{{ post.id }}" data-likes="{{ post.post_like.count }}" data-isliked="{{ post.is_liked }}">Like</button>
+            </div>
+        {% empty %}
+            <p>No posts to display.</p>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination justify-content-center">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1" class="btn btn-outline-info mr-2">&laquo; first</a>
+                <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-outline-info mr-2">previous</a>
+            {% endif %}
+            
+            <span class="current">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="btn btn-outline-info mr-2">next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-outline-info">&raquo; last</a>
+            {% endif %}
+        </span>
+    </div>
+    <script>
+        // Wait for the page to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all the like buttons
+            var likeButtons = document.querySelectorAll('.like-btn');
+    
+            // Add a click event listener to each like button
+            likeButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    // Get the post ID from the data-post attribute
+                    var postId = button.getAttribute('data-post');
+    
+                    // Send a POST request to the server to like the post
+                    fetch(`/like/${postId}`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log(data);  // Log the server's response
+    
+                        // Update the button text
+                        button.textContent = data.is_liked ? 'Unlike' : 'Like';
+    
+                        // Update the number of likes on the page
+                        var likesElement = button.previousElementSibling;
+                        likesElement.innerHTML = `<span style="font-size: 17px; color: red;">❤️</span>: ${data.likes}`;
+                    })
+                    .catch(error => {
+                        console.log('There was a problem with the fetch operation: ' + error.message);
+                    });
+                });
+            });
+        });
+
+        
+        // Function to get a cookie by name
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        document.getElementById('like-button').addEventListener('click', function() {
+            this.classList.toggle('liked');
+        });
+
+        
+            
+    </script>
+{% else %}
+    <p>You must be logged in to view this page.</p>
+{% endif %}
+{% endblock %}
+

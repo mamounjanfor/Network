@@ -1,0 +1,204 @@
+{% extends "network/layout.html" %}
+
+{% block body %}
+    <script>
+        function getCookie(name){
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if(parts.length == 2) return parts.pop().split(';').shift();
+        }
+
+        function submitHandler(id){
+            const textareaValue = document.getElementById(`textarea_${id}`).value;
+            const content = document.getElementById(`content_${id}`);
+            const modal = document.getElementById(`modal_edit_post_${id}`);
+            fetch(`/edit/${id}`, {
+                method: "POST",
+                headers: {"Content-type": "application/json", "X-CSRFToken": getCookie("csrftoken")},
+                body: JSON.stringify({
+                    content: textareaValue
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                var content = document.querySelector('#content');
+                if (content) {
+                    content.innerHTML = result.data;
+                }
+
+                modal.classList.remove('show');
+                modal.setAttribute('aria-hidden', 'true');
+                modal.setAttribute('style', 'display: none');
+
+                // get modal backdrops
+                const modalsBackdrops = document.getElementsByClassName('modal-backdrop');
+
+                for(let i=0; i<modalsBackdrops.length; i++){
+                    document.body.removeChild(modalsBackdrops[i]);
+                }
+                location.reload();
+            })
+                        
+        }
+
+    
+    </script>
+
+   
+    <div class="main-content">
+        <h2>{{ username }}</h2>
+        <h3>Followers: {{ followers.count }}</h3>
+        <h3>Following: {{ following.count }}</h3>
+        {% if user.is_authenticated %}
+            {% if user != user_profile %}
+                {% if isFollowing %}
+                    <form action="{% url 'unfollow' %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" value="{{ user_profile }}" name="userfollow" />
+                        <input class="btn btn-danger" type="submit" value="Unfollow" />
+                    </form>
+                {% else %}
+                    <form action="{% url 'follow' %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" value="{{ user_profile }}" name="userfollow" />
+                        <input class="btn btn-success" type="submit" value="Follow" />
+                    </form>
+                {% endif %}
+            {% endif %}
+        {% endif %}
+    </div>
+
+
+    
+   
+    <!-- Display Posts -->
+    <div class="main-content">
+        {% for post in page_obj %}
+            <div class="post">
+                <!-- <h4> By: {{ post.user.username }}</h4> -->
+                <h4></h4><a href="{% url 'profile' user_id=post.user.id %}">By: {{ post.user.username }}</a></h4>
+                <p>{{ post.content }}</p>
+                <small>{{ post.timestamp|date:"M d, Y H:i" }}</small>
+                <p><span style="font-size: 17px; color: red;">❤️</span>: {{ post.post_like.count }}</p>
+                <button id="like-button"  class="like-btn" data-post="{{ post.id }}" data-likes="{{ post.post_like.count }}" data-isliked="{{ post.is_liked }}">Like</button>
+                {% if user.is_authenticated %}
+                    {% if user == post.user %}
+                        <div class="d-flex justify-content-aroud">
+                            <button class="btn btn-success" data-toggle="modal" data-target="#modal_edit_post_{{ post.id }}">Edit</button>
+                        </div>
+                        <!-- Modal -->
+                        <div class="modal fade" id="modal_edit_post_{{ post.id }}" tabindex="-1" role="dialog" aria-labelledby="modal_edit_post_{{ post.id }}_label" aria-hidden="true">
+                            <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                <h5 class="modal-title">Edit</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                                </div>
+                                <div class="modal-body">
+                                <textarea rows="5" id="textarea_{{ post.id }}" class="form-control" name="content">{{ post.content }}</textarea>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-primary btn-fixed-width" onclick="submitHandler({{ post.id }})">Save</button>
+                                    <button type="button" class="btn btn-secondary btn-fixed-width" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                
+                    {% endif %}
+                {% endif %}   
+            </div>
+        {% empty %}
+            <p>No posts to display.</p>
+        {% endfor %}
+    </div>
+
+   
+
+    <!-- Pagination Controls -->
+    <div class="pagination justify-content-center">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1" class="btn btn-outline-info mr-2">&laquo; first</a>
+                <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-outline-info mr-2">previous</a>
+            {% endif %}
+            
+            <span class="current">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="btn btn-outline-info mr-2">next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-outline-info">&raquo; last</a>
+            {% endif %}
+        </span>
+    </div>
+    <script>
+        // Wait for the page to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all the like buttons
+            var likeButtons = document.querySelectorAll('.like-btn');
+    
+            // Add a click event listener to each like button
+            likeButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    // Get the post ID from the data-post attribute
+                    var postId = button.getAttribute('data-post');
+    
+                    // Send a POST request to the server to like the post
+                    fetch(`/like/${postId}`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log(data);  // Log the server's response
+    
+                        // Update the button text
+                        button.textContent = data.is_liked ? 'Unlike' : 'Like';
+    
+                        // Update the number of likes on the page
+                        var likesElement = button.previousElementSibling;
+                        likesElement.innerHTML = `<span style="font-size: 17px; color: red;">❤️</span>: ${data.likes}`;
+                    })
+                    .catch(error => {
+                        console.log('There was a problem with the fetch operation: ' + error.message);
+                    });
+                });
+            });
+        });
+
+        
+        // Function to get a cookie by name
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        document.getElementById('like-button').addEventListener('click', function() {
+            this.classList.toggle('liked');
+        });
+
+        
+            
+    </script>
+{% endblock %}
